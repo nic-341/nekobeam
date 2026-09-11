@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ネコビーム 横スクロール</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9de0ff;touch-action:none;font-family:system-ui,sans-serif}
+canvas{display:block;width:100%;height:100%}
+#controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 12px;pointer-events:none}
+.g{display:flex;gap:8px}button{pointer-events:auto;min-width:62px;height:58px;border:2px solid #fff8;border-radius:16px;background:#222c;color:#fff;font-weight:800;font-size:21px}
+#beam{min-width:105px}
+#msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:white;font-size:25px;font-weight:900;text-shadow:0 3px 6px #000;pointer-events:none}
+.small{font-size:15px;margin-top:8px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="msg"></div>
+<div id="controls">
+<div class="g"><button id="l">◀</button><button id="r">▶</button></div>
+<div class="g"><button id="j">JUMP</button><button id="beam">👁️ BEAM</button></div>
+</div>
+<script>
+const c=document.getElementById("game"),x=c.getContext("2d"),msg=document.getElementById("msg");
+let W,H,D,cam=0,score=0,running=true,clear=false,last=0;
+function size(){D=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*D;c.height=H*D;x.setTransform(D,0,0,D,0,0)}addEventListener("resize",size);size();
+const ground=()=>H-105, world=6200;
+let p={x:160,y:0,w:48,h:56,vx:0,vy:0,ground:false,hp:3,inv:0,face:1,beam:0};
+const plats=[[0,1100],[1250,950],[2350,1000],[3500,900],[4550,1650],[700,230],[1480,220],[1800,260],[2700,230],[3050,280],[3820,240],[4200,240],[4900,260]];
+let enemies=[520,900,1510,2000,2650,3180,3700,4380,5050].map((v,i)=>({x:v,y:0,w:45,h:45,v:i%2?55:-55,dead:false,bat:i%2}));
+let keys={l:false,r:false},shots=[];
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function topAt(px,py,vy){
+ let best=null;
+ for(const q of plats){let yy=q[0]<1000&&q[1]===230?H-220:H-105;
+  if((q[0]===1480||q[0]===2700)&&q[1]===220)yy=H-235;
+  if(q[0]===1800||q[0]===3050||q[0]===4900)yy=H-170;
+  if(q[0]===3820)yy=H-220;if(q[0]===4200)yy=H-280;
+  if(px+5<q[0]+q[1]&&px+p.w-5>q[0]&&py+p.h<=yy+12&&py+p.h+vy*.016>=yy)best=yy;
+ }return best;
+}
+function jump(){if(running&&p.ground){p.vy=-720;p.ground=false}}
+function fire(){if(running){p.beam=.22;shots.push({x:p.face>0?p.x+p.w:p.x-500,y:p.y+21,w:500,h:13,v:p.face*1000,life:.32})}}
+function bind(id,down,up){let b=document.getElementById(id);b.onpointerdown=e=>{e.preventDefault();down()};b.onpointerup=e=>{e.preventDefault();if(up)up()};b.onpointercancel=()=>up&&up()}
+bind("l",()=>keys.l=true,()=>keys.l=false);bind("r",()=>keys.r=true,()=>keys.r=false);bind("j",jump);bind("beam",fire);
+onkeydown=e=>{if(e.key=="ArrowLeft")keys.l=true;if(e.key=="ArrowRight")keys.r=true;if(e.key=="ArrowUp"||e.key==" ")jump();if(e.key=="z"||e.key=="x")fire()};
+onkeyup=e=>{if(e.key=="ArrowLeft")keys.l=false;if(e.key=="ArrowRight")keys.r=false};
+onpointerdown=e=>{if(!running)reset()};
+function hurt(){if(p.inv>0)return;p.hp--;p.inv=1.1;p.vy=-400;p.vx=-p.face*250;if(p.hp<=0){running=false;msg.innerHTML="GAME OVER<div class='small'>タップでリスタート</div>"}}
+function reset(){p.x=160;p.y=ground()-p.h;p.vx=p.vy=0;p.hp=3;p.inv=0;p.ground=true;p.face=1;cam=0;score=0;running=true;clear=false;msg.innerHTML="";shots=[];enemies.forEach((e,i)=>{e.x=[520,900,1510,2000,2650,3180,3700,4380,5050][i];e.dead=false})}
+function draw(){
+ x.clearRect(0,0,W,H);
+ let sky=x.createLinearGradient(0,0,0,H);sky.addColorStop(0,"#78d7ff");sky.addColorStop(1,"#f1fbff");x.fillStyle=sky;x.fillRect(0,0,W,H);
+ x.fillStyle="#8fc58c";for(let i=-2;i<15;i++){let xx=i*500-(cam*.18%500);x.beginPath();x.arc(xx,H-120,240,Math.PI,0);x.fill()}
+ for(const q of plats){let yy=H-105;if(q[0]===700||q[0]===3820)yy=H-220;if(q[0]===1480||q[0]===2700)yy=H-235;if(q[0]===1800||q[0]===3050||q[0]===4900)yy=H-170;if(q[0]===4200)yy=H-280;let xx=q[0]-cam;if(xx+q[1]>-20&&xx<W+20){x.fillStyle="#5b9347";x.fillRect(xx,yy,q[1],8);x.fillStyle="#895b38";x.fillRect(xx,yy+8,q[1],22)}}
+ x.fillStyle="#28324a";[[1100,150],[2200,150],[3350,150],[4400,150]].forEach(q=>x.fillRect(q[0]-cam,H-105,q[1],105));
+ for(const e of enemies)if(!e.dead){x.font="42px sans-serif";x.textAlign="center";x.textBaseline="middle";x.fillText(e.bat?"🦇":"👾",e.x-cam+22,e.y+22)}
+ x.save();if(p.inv>0&&Math.floor(p.inv*12)%2===0)x.globalAlpha=.35;x.font="48px sans-serif";x.textAlign="center";x.textBaseline="middle";x.fillText("🐱",p.x-cam+24,p.y+28);
+ if(p.beam>0){let ex=p.face>0?p.x-cam+48:p.x-cam;let g=x.createLinearGradient(ex,p.y+21,ex+p.face*480,p.y+21);g.addColorStop(0,"#fff");g.addColorStop(.3,"#9ff");g.addColorStop(1,"#f5f");x.strokeStyle=g;x.lineWidth=12;x.beginPath();x.moveTo(ex,p.y+21);x.lineTo(ex+p.face*480,p.y+21);x.stroke()}x.restore();
+ x.fillStyle="#333";x.fillRect(5900-cam,H-270,7,165);x.font="48px sans-serif";x.fillText("🏁",5928-cam,H-255);
+ x.fillStyle="#222b";x.fillRect(12,12,270,78);x.fillStyle="#fff";x.font="bold 19px system-ui";x.textAlign="left";x.fillText("❤️".repeat(p.hp)+"🖤".repeat(3-p.hp),24,40);x.fillText("SCORE "+score,24,68);x.fillText(Math.min(100,Math.floor(p.x/5900*100))+"%",185,68);
+}
+function update(t){let dt=Math.min((t-last)/1000,.033);last=t;
+ if(running){let a=keys.l?-950:keys.r?950:0;if(a){p.vx+=a*dt;p.face=a>0?1:-1}else p.vx*=Math.pow(.0005,dt);p.vx=Math.max(-330,Math.min(330,p.vx));p.vy+=1800*dt;p.x+=p.vx*dt;p.x=Math.max(0,Math.min(world-100,p.x));p.y+=p.vy*dt;p.ground=false;let yy=topAt(p.x,p.y,p.vy);if(yy!==null&&p.vy>=0){p.y=yy-p.h;p.vy=0;p.ground=true}if(p.y>H+80){hurt();p.y=ground()-p.h}
+ p.inv=Math.max(0,p.inv-dt);p.beam=Math.max(0,p.beam-dt);
+ enemies.forEach(e=>{if(e.dead)return;e.y=ground()-e.h-(e.bat?90+Math.sin(t/250+e.x)*25:0);e.x+=e.v*dt;if(Math.abs(e.x-p.x)<500&&Math.sign(p.x-e.x)!==Math.sign(e.v))e.v*=-1;if(hit(p,e))hurt()});
+ shots.forEach(s=>{s.x+=s.v*dt;s.life-=dt;enemies.forEach(e=>{if(!e.dead&&s.x<e.x+e.w&&s.x+s.w>e.x&&s.y<e.y+e.h&&s.y+s.h>e.y){e.dead=true;score+=100}})});shots=shots.filter(s=>s.life>0);
+ cam+=(Math.max(0,p.x-W*.28)-cam)*Math.min(1,dt*6);cam=Math.max(0,Math.min(world-W,cam));
+ if(p.x>5900){running=false;clear=true;score+=500;msg.innerHTML="🎉 STAGE CLEAR!<div class='small'>タップで最初から遊べます</div>"}}
+ draw();requestAnimationFrame(update)}
+reset();requestAnimationFrame(update);
+</script>
+</body></html>
