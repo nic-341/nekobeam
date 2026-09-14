@@ -1,7 +1,7 @@
 'use strict';
 // Replace these PNGs to customize the artwork. Missing images use pixel-art fallbacks.
 const SPRITES={cat:'assets/cat.png',mouse:'assets/mouse.png',taiyaki:'assets/taiyaki.png',tower:'assets/tower.png',background:'assets/hills-background.png'};
-const art={};for(const [k,src] of Object.entries(SPRITES)){const im=new Image();im.onload=()=>art[k]=im;im.src=src;}
+const art={};for(const [k,src] of Object.entries(SPRITES)){const im=new Image();let retried=false;im.onload=()=>art[k]=im;im.onerror=()=>{const embedded=window.NEKO_EMBEDDED_ASSETS?.[k];if(!retried&&embedded){retried=true;im.src=embedded;}};im.src=src;}
 const canvas=document.querySelector('#canvas'),ctx=canvas.getContext('2d');
 const ui={overlay:document.querySelector('#overlay'),title:document.querySelector('h1'),msg:document.querySelector('#message'),start:document.querySelector('#start'),life:document.querySelector('#life'),fish:document.querySelector('#fish'),bar:document.querySelector('#progress i')};
 const WORLD=12000,GROUND=440,SECTION=1200,SECTION_COUNT=10,keys={left:false,right:false,jump:false,beam:false},dash={left:false,right:false},lastTap={left:-1000,right:-1000};
@@ -123,7 +123,24 @@ function press(k){if(state!=='playing')return;if((k==='left'||k==='right')&&!key
 function release(k){keys[k]=false;if(k in dash)dash[k]=false;}
 const mapping={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Space:'jump',ArrowUp:'jump',KeyW:'jump',KeyX:'beam',KeyJ:'beam',KeyZ:'beam'};
 window.addEventListener('keydown',e=>{if(mapping[e.code]){e.preventDefault();if(!e.repeat)press(mapping[e.code]);}if(e.code==='KeyP'&&!e.repeat)pause();});window.addEventListener('keyup',e=>{if(mapping[e.code]){e.preventDefault();release(mapping[e.code]);}});
-document.querySelectorAll('[data-key]').forEach(b=>{const pointers=new Set();b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);pointers.add(e.pointerId);press(b.dataset.key);b.classList.add('active');});const end=e=>{pointers.delete(e.pointerId);if(!pointers.size){release(b.dataset.key);b.classList.remove('active');}};b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);b.addEventListener('lostpointercapture',end);});
+document.querySelectorAll('[data-key]').forEach(b=>{
+ const pointers=new Set(),touches=new Set();
+ const activate=()=>{press(b.dataset.key);b.classList.add('active');};
+ const deactivate=()=>{if(!pointers.size&&!touches.size){release(b.dataset.key);b.classList.remove('active');}};
+ b.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;e.preventDefault();b.setPointerCapture(e.pointerId);pointers.add(e.pointerId);activate();});
+ const end=e=>{if(e.pointerType==='touch')return;pointers.delete(e.pointerId);deactivate();};
+ b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);b.addEventListener('lostpointercapture',end);
+ // Explicit non-passive Touch Events also suppress Safari's double-tap zoom.
+ b.addEventListener('touchstart',e=>{e.preventDefault();for(const t of e.changedTouches)touches.add(t.identifier);activate();},{passive:false});
+ b.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+ const touchEnd=e=>{e.preventDefault();for(const t of e.changedTouches)touches.delete(t.identifier);deactivate();};
+ b.addEventListener('touchend',touchEnd,{passive:false});b.addEventListener('touchcancel',touchEnd,{passive:false});
+ window.addEventListener('blur',()=>{pointers.clear();touches.clear();deactivate();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden){pointers.clear();touches.clear();deactivate();}});
+});
+const gameSurface=document.querySelector('#game');
+gameSurface.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+for(const eventName of ['gesturestart','gesturechange','gestureend'])gameSurface.addEventListener(eventName,e=>e.preventDefault(),{passive:false});
 document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('dragstart',e=>e.preventDefault());document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});window.addEventListener('blur',()=>{clearKeys();if(state==='playing')pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearKeys();if(state==='playing')pause();}});
 ui.start.onclick=start;document.querySelector('#pause').onclick=pause;document.querySelector('#sound').onclick=()=>{sound=!sound;document.querySelector('#sound').textContent='音 '+(sound?'ON':'OFF');tone(660);};
 function frame(t){if(!last)last=t;acc+=Math.min((t-last)/1000,.05);last=t;while(acc>=1/120){step(1/120);acc-=1/120;}draw();requestAnimationFrame(frame);}reset();resize();requestAnimationFrame(frame);

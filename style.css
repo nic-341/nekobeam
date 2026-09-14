@@ -10,3 +10,7 @@
 @media(max-height:500px) and (orientation:landscape){header,.topline,footer,.below{display:none}main{padding:0}#overlay{padding:15px 5% 10px}h1{font-size:44px;margin:4px 0 6px}#message{font-size:10px;margin-bottom:8px}#start{padding:8px 18px}#hint{display:none}.wood-help{display:none}#game{border:0}#life{font-size:32px}}
 
 @media(max-width:650px){#touch{display:flex}footer{display:none}}
+
+/* Prevent Safari gestures across the entire play surface, including labels. */
+#game,#game *{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}#touch button{font-size:23px}
+
